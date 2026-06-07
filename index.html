@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>수송 배차 대시보드</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --bg:#eef2f6; --card:#ffffff; --text:#1c2733; --sub:#7b8794; --line:#e4e9ee;
+    --blue:#3a7bd5; --blue-d:#2f66b3; --green:#2faa6a; --amber:#e0a200;
+    --red:#d8504a; --vvip:#9b59b6; --pool:#fbf3e0; --r:12px; --tap:44px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.4;
+    padding:0 0 96px 0;
+  }
+  #root{max-width:1080px;margin:0 auto;padding:12px 12px 0;}
+  .head{display:flex;align-items:center;gap:10px;margin:4px 2px 12px;}
+  .head .ic{width:36px;height:36px;border-radius:11px;background:var(--blue);
+    display:flex;align-items:center;justify-content:center;color:#fff;flex:0 0 auto;}
+  .head h1{font-size:17px;font-weight:700;margin:0;line-height:1.2;}
+  .head p{font-size:11.5px;color:var(--sub);margin:1px 0 0;}
+  .ver{margin-left:auto;font-size:11px;color:var(--sub);background:#f4f7fa;
+    border:1px solid var(--line);border-radius:8px;padding:3px 8px;white-space:nowrap;}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;}
+  .stat .l{display:flex;align-items:center;gap:4px;color:var(--sub);font-size:11.5px;}
+  .stat .v{font-size:18px;font-weight:700;line-height:1.1;margin-top:2px;}
+  .stat .s{font-size:11px;color:var(--sub);}
+  .stat .s.warn{color:var(--red);font-weight:600;}
+
+  .warnbox{background:#fff8f0;border:1px solid #f3d9b8;border-radius:var(--r);
+    padding:10px 12px;margin-bottom:12px;}
+  .warnbox .t{font-size:13px;font-weight:700;color:#b06a00;display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+  .warnbox ul{margin:0;padding-left:18px;}
+  .warnbox li{font-size:12.5px;color:#8a5a10;margin:2px 0;}
+
+  .secttl{font-size:12.5px;font-weight:700;color:var(--sub);margin:14px 2px 7px;
+    display:flex;align-items:center;gap:6px;}
+
+  .vvipcard{background:var(--card);border:1px solid #e6cdef;border-radius:var(--r);overflow:hidden;margin-bottom:6px;}
+  .vvipcard .hd{background:#f7eefb;border-bottom:1px solid #efdcf5;padding:8px 12px;
+    font-size:13px;font-weight:700;color:#7a3d92;display:flex;align-items:center;gap:6px;}
+  .row{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid #f3f5f8;}
+  .row:first-child{border-top:none;}
+  .row .nm{flex:1;min-width:0;}
+  .row .nm b{font-size:14px;font-weight:600;display:block;}
+  .row .nm .ad{font-size:11.5px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .grid{display:grid;grid-template-columns:1fr;gap:10px;}
+  @media(min-width:760px){.grid{grid-template-columns:1fr 1fr;}}
+  .gcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;}
+  .gcard .hd{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);}
+  .gcard .hd .badge{width:24px;height:24px;border-radius:8px;color:#fff;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .gcard .hd .gt{font-size:13.5px;font-weight:700;}
+  .gcard .hd .lk{font-size:11px;color:var(--vvip);background:#f3e6f7;border-radius:6px;padding:2px 6px;font-weight:600;}
+  .gcard .hd .drv{margin-left:auto;display:flex;align-items:center;gap:5px;}
+
+  select{font-size:12px;border:1px solid var(--line);border-radius:7px;
+    padding:5px 6px;background:#fff;color:var(--text);max-width:160px;min-height:30px;}
+  select:disabled{opacity:.5;background:#f7f9fb;}
+
+  .poolbox{background:var(--pool);border:1px solid #ecdcb4;border-radius:var(--r);padding:10px 12px;margin-bottom:6px;}
+  .poolbox .t{font-size:13px;font-weight:700;color:#9a6a00;display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:4px 10px;font-size:12.5px;}
+  .chip.amber{background:#fff3da;border-color:#ecd6a8;}
+
+  .addbox{background:var(--card);border:1px dashed #cfd8e0;border-radius:var(--r);padding:12px;margin-bottom:6px;}
+  .addbox .t{font-size:13px;font-weight:700;color:var(--sub);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .addbox input{width:100%;font-size:13.5px;border:1px solid var(--line);border-radius:8px;
+    padding:9px 10px;margin-bottom:7px;}
+  .addbox label.ck{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);margin-bottom:9px;}
+
+  .pending{margin-top:8px;}
+  .pending .pt{font-size:12px;color:var(--sub);margin-bottom:5px;font-weight:600;}
+
+  .actionbar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:10px 12px;
+    display:flex;gap:8px;max-width:1080px;margin:0 auto;}
+  .btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    min-height:var(--tap);border-radius:11px;font-size:14px;font-weight:600;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--text);transition:.12s;}
+  .btn:active{transform:scale(.98);}
+  .btn.ghost{background:transparent;}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#fff;}
+  .btn.primary:active{background:#28935a;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn .ct{font-size:11px;opacity:.85;font-weight:500;}
+
+  .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);
+    background:#1c2733;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;
+    box-shadow:0 8px 24px rgba(20,40,70,.3);z-index:50;max-width:90%;text-align:center;}
+  .empty{text-align:center;padding:40px 20px;color:var(--sub);font-size:13px;}
+  svg.i{display:block;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useCallback } = React;
+
+/* ---------- 텔레그램 + 슬림뷰 디코드 ---------- */
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+function b64urlToBytes(s){
+  s = s.replace(/-/g,"+").replace(/_/g,"/");
+  while(s.length % 4) s += "=";
+  const bin = atob(s), arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+function decodeSlim(){
+  const h = (location.hash || "").replace(/^#/, "").trim();
+  if(!h) return null;
+  try { return JSON.parse(pako.ungzip(b64urlToBytes(h), { to:"string" })); }
+  catch(e){ console.error("슬림뷰 디코드 실패", e); return null; }
+}
+
+/* ---------- 브라우저 단독 확인용 샘플 (hash 없을 때) ---------- */
+const SAMPLE = {
+  v: 7, dest: "세종 정부청사", cap: 6,
+  groups: [
+    { g:1, spot:"강남구청 앞", d:0, lock:false, mem:[
+      {i:3,n:"이정민",a:"서초구"},{i:4,n:"최은영",a:"강동구"},{i:5,n:"정태욱",a:"마포구"}]},
+    { g:2, spot:"여의도역 3번", d:1, lock:false, mem:[
+      {i:6,n:"한지원",a:"영등포구"},{i:7,n:"오세훈",a:"강서구"}]},
+    { g:3, spot:"노원역 앞", d:null, lock:true, mem:[
+      {i:8,n:"윤도현",a:"노원구"},{i:9,n:"임수정",a:"성북구"},
+      {i:10,n:"강현우",a:"종로구"},{i:11,n:"조은비",a:"중구"}]},
+  ],
+  vvip: [{i:0,n:"총재",a:"중구",d:2}],
+  drivers: [
+    {i:0,n:"박기사",v:"12가3456",vo:false},
+    {i:1,n:"김기사",v:"34나7890",vo:false},
+    {i:2,n:"VVIP수행",v:"00허0001",vo:true},
+    {i:3,n:"이기사",v:"56다1234",vo:false},
+  ],
+  warn: ["⚪ 소수 조(≤2명): 조2(2명)", "🔴 기사 미배정: 조3"],
+};
+
+/* ---------- 아이콘(인라인) ---------- */
+const I = {
+  car:  <svg className="i" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2l-2-7H5L3 17h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>,
+  users:<svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>,
+  carS: <svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2l-2-7H5L3 17h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>,
+  pin:  <svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  crown:<svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 6l4 4 6-7 6 7 4-4v12H2z"/></svg>,
+  warn: <svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  plus: <svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  copy: <svg className="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  check:<svg className="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+};
+
+const colorForLabel = (n) => `hsl(${Math.round(((n-1)*137.508)%360)},62%,47%)`;
+
+function App(){
+  const [slim] = useState(() => decodeSlim() || SAMPLE);
+  const [baseV] = useState(slim.v);
+  const cap = slim.cap || 6;
+
+  // 편집 상태 (단일 객체 — 폰·PC 공유, 분기 없음)
+  const [groups, setGroups] = useState(() => slim.groups.map(g => ({...g, mem:[...g.mem]})));
+  const [vvip, setVvip] = useState(() => slim.vvip.map(v => ({...v})));
+  const [adds, setAdds] = useState([]);            // 추가 대기(좌표 없음 → 봇이 배정)
+  const ops = useMemo(() => [], []);                // 동작 누적 (전송 페이로드)
+  const [opCount, setOpCount] = useState(0);
+  const pushOp = useCallback((o) => { ops.push(o); setOpCount(c => c+1); }, [ops]);
+
+  const [toast, setToast] = useState("");
+  const flash = (t) => { setToast(t); clearTimeout(flash._t); flash._t = setTimeout(()=>setToast(""),2600); };
+
+  useEffect(() => {
+    if(tg){ tg.ready(); tg.expand(); document.body.style.background = tg.themeParams?.bg_color || "var(--bg)"; }
+  }, []);
+
+  /* ---------- 파생값 ---------- */
+  const drivers = slim.drivers;
+  const drvById = useMemo(() => Object.fromEntries(drivers.map(d => [d.i, d])), [drivers]);
+  const usedDrvIds = useMemo(() => {
+    const s = new Set();
+    groups.forEach(g => { if(g.d != null) s.add(g.d); });
+    vvip.forEach(v => { if(v.d != null) s.add(v.d); });
+    return s;
+  }, [groups, vvip]);
+  const waiting = useMemo(() => drivers.filter(d => !usedDrvIds.has(d.i)), [drivers, usedDrvIds]);
+
+  const presentGids = useMemo(() => groups.filter(g => g.mem.length).map(g => g.g), [groups]);
+  const totalPax = useMemo(() => groups.reduce((s,g)=>s+g.mem.length,0) + vvip.length, [groups, vvip]);
+  const totalCars = groups.filter(g=>g.mem.length).length + vvip.length;
+  const labelByG = useMemo(() => { const m={}; groups.filter(g=>g.mem.length).forEach((g,i)=>m[g.g]=i+1); return m; }, [groups]);
+  const colorOf = (gid) => colorForLabel(labelByG[gid] || gid);
+
+  /* ---------- 동작 (로컬 즉시 반영 + ops 누적) ---------- */
+  function moveMember(memId, fromG, toG){
+    const dest = groups.find(g => g.g === toG);
+    if(dest && dest.lock){ flash("🔒 확정된 조로는 이동할 수 없어요."); return; }
+    if(dest && dest.mem.length >= cap){ flash(`🔴 ${labelByG[toG]||toG}조 만석(${cap}명) — 봇이 확정 시 재확인합니다.`); }
+    setGroups(gs => gs.map(g => {
+      if(g.g === fromG) return {...g, mem:g.mem.filter(m => m.i !== memId)};
+      if(g.g === toG){ const m = groups.find(x=>x.g===fromG)?.mem.find(x=>x.i===memId); return m ? {...g, mem:[...g.mem, m]} : g; }
+      return g;
+    }));
+    pushOp({op:"move", i:memId, to:toG});
+  }
+  function dropMember(memId, fromG){
+    setGroups(gs => gs.map(g => g.g===fromG ? {...g, mem:g.mem.filter(m=>m.i!==memId)} : g));
+    pushOp({op:"drop", i:memId});
+    flash("불참 처리 — 확정 시 반영됩니다.");
+  }
+  function toVvip(memId, fromG){
+    const m = groups.find(g=>g.g===fromG)?.mem.find(x=>x.i===memId);
+    setGroups(gs => gs.map(g => g.g===fromG ? {...g, mem:g.mem.filter(x=>x.i!==memId)} : g));
+    if(m) setVvip(vs => [...vs, {i:m.i, n:m.n, a:m.a, d:null}]);
+    pushOp({op:"vvip", i:memId});
+    flash("VVIP 전환 — 전용기사는 봇이 배정/확인합니다.");
+  }
+  function setGroupDriver(gid, dId){
+    setGroups(gs => gs.map(g => g.g===gid ? {...g, d:dId} : g));
+    pushOp({op:"setdrv", g:gid, d:dId});
+  }
+  function setVvipDriver(vId, dId){
+    setVvip(vs => vs.map(v => v.i===vId ? {...v, d:dId} : v));
+    pushOp({op:"vvipdrv", i:vId, d:dId});
+  }
+  function addPerson(name, addr, isV){
+    const item = {n:name.trim(), a:addr.trim(), vvip:!!isV};
+    setAdds(a => [...a, item]);
+    pushOp({op:"add", n:item.n, a:item.a, vvip:item.vvip});
+    flash(`${item.n} 추가 대기 — 봇이 좌표 변환 후 조 배정합니다.`);
+  }
+
+  /* ---------- 전송 / 복사 ---------- */
+  function submit(){
+    const payload = JSON.stringify({ base_v: baseV, ops });
+    if(tg && tg.sendData){
+      if(payload.length > 4096){ flash("⚠️ 변경이 너무 많아 한 번에 못 보냅니다. 나눠서 확정하세요."); return; }
+      tg.sendData(payload);           // 전송 후 앱이 닫힘. 봇이 버전 검사 → 반영/충돌안내
+    } else {
+      console.log("SEND PAYLOAD →", payload);
+      alert("브라우저 단독 모드 — 전송 페이로드(콘솔에도 출력):\n\n" + payload);
+    }
+  }
+  function copyTable(){
+    let out = `📋 수송 배차표 (v${baseV} 기준 · 미확정 변경 ${opCount}건)\n행사장: ${slim.dest}\n총 ${totalPax}명 · 차량 ${totalCars}대\n\n`;
+    if(vvip.length){ out += "👑 VVIP 전용 (1:1)\n"; vvip.forEach(v=>{ const d=drvById[v.d]; out += `  ${v.n} — ${d?`${d.n}(${d.v})`:"기사 미배정 ⚠️"} · ${v.a}\n`; }); out += "\n"; }
+    groups.filter(g=>g.mem.length).forEach(g=>{ const d=drvById[g.d];
+      out += `[${labelByG[g.g]}조] 🚐 ${d?`${d.n} (${d.v})`:"기사 미배정 ⚠️"} · ${g.spot}${g.lock?" 🔒확정":""}\n`;
+      g.mem.forEach(m => out += `  ${m.n} — ${m.a}\n`); out += "\n";
+    });
+    if(adds.length) out += `[추가 대기] ${adds.map(a=>a.n).join(", ")}\n`;
+    navigator.clipboard?.writeText(out).then(()=>flash("배차표를 복사했어요.")).catch(()=>flash("복사 실패 — 직접 선택하세요."));
+  }
+
+  /* ---------- 렌더 ---------- */
+  const moveOptsFor = (gid) => groups.filter(g => g.mem.length && g.g !== gid);
+
+  return (
+    <React.Fragment>
+      <div className="head">
+        <div className="ic">{I.car}</div>
+        <div><h1>수송 배차 대시보드</h1><p>가까운 인사끼리 조 편성 · 폰·PC 같은 세션</p></div>
+        <div className="ver">v{baseV} · 변경 {opCount}건</div>
+      </div>
+
+      <div className="stats">
+        <div className="stat"><div className="l">{I.users}인사</div><div className="v">{totalPax}명</div>
+          <div className="s">{vvip.length?`VVIP ${vvip.length} 포함`:"단체"}</div></div>
+        <div className="stat"><div className="l">{I.carS}필요 차량</div><div className="v">{totalCars}대</div>
+          <div className="s">단체 {groups.filter(g=>g.mem.length).length} · VVIP {vvip.length}</div></div>
+        <div className="stat"><div className="l">{I.pin}대기 기사</div><div className="v">{waiting.length}명</div>
+          <div className={"s"+(waiting.length?"":" warn")}>{waiting.length?"여유":"없음"}</div></div>
+      </div>
+
+      {slim.warn && slim.warn.length>0 && (
+        <div className="warnbox">
+          <div className="t">{I.warn}배차 경고 ({slim.warn.length})</div>
+          <ul>{slim.warn.map((w,i)=><li key={i}>{w}</li>)}</ul>
+        </div>
+      )}
+
+      {vvip.length>0 && (
+        <React.Fragment>
+          <div className="secttl">{I.crown}VVIP 전용 · {vvip.length}명 (1:1)</div>
+          {vvip.map(v => (
+            <div className="vvipcard" key={v.i}>
+              <div className="row">
+                <div className="nm"><b>{v.n}</b><div className="ad">{v.a}</div></div>
+                <select value={v.d ?? ""} onChange={e=>setVvipDriver(v.i, e.target.value===""?null:Number(e.target.value))}>
+                  <option value="">기사 미배정</option>
+                  {drivers.filter(d=>d.vo || d.i===v.d).map(d=><option key={d.i} value={d.i}>{d.n} ({d.v})</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+        </React.Fragment>
+      )}
+
+      <div className="secttl">{I.users}조 편성</div>
+      {presentGids.length===0 && <div className="empty">편성된 조가 없습니다.</div>}
+      <div className="grid">
+        {groups.filter(g=>g.mem.length).map(g => (
+          <div className="gcard" key={g.g}>
+            <div className="hd" style={{background: colorOf(g.g)+"1f"}}>
+              <span className="badge" style={{background: colorOf(g.g)}}>{labelByG[g.g]}</span>
+              <span className="gt">{labelByG[g.g]}조 · {g.mem.length}명</span>
+              {g.lock && <span className="lk">🔒확정</span>}
+              <span className="ad" style={{fontSize:11,color:"var(--sub)",marginLeft:2}}>{g.spot}</span>
+              <div className="drv">
+                {I.carS}
+                <select value={g.d ?? ""} disabled={g.lock}
+                  onChange={e=>setGroupDriver(g.g, e.target.value===""?null:Number(e.target.value))}>
+                  <option value="">기사 미배정</option>
+                  {drivers.filter(d=>!d.vo && (!usedDrvIds.has(d.i)||d.i===g.d)).map(d=><option key={d.i} value={d.i}>{d.n} ({d.v})</option>)}
+                </select>
+              </div>
+            </div>
+            {g.mem.map(m => (
+              <div className="row" key={m.i}>
+                <div className="nm"><b>{m.n}</b><div className="ad">{m.a}</div></div>
+                <select value="" disabled={g.lock} onChange={e=>{
+                  const val = e.target.value;
+                  if(val==="out") dropMember(m.i, g.g);
+                  else if(val==="vvip") toVvip(m.i, g.g);
+                  else if(val) moveMember(m.i, g.g, Number(val));
+                  e.target.value="";
+                }}>
+                  <option value="">{g.lock?"확정됨":"이동…"}</option>
+                  {!g.lock && moveOptsFor(g.g).map(o=><option key={o.g} value={o.g}>{labelByG[o.g]}조로</option>)}
+                  {!g.lock && <option value="vvip">VVIP로</option>}
+                  {!g.lock && <option value="out">불참 처리</option>}
+                </select>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {waiting.length>0 && (
+        <React.Fragment>
+          <div className="secttl">{I.carS}대기 기사 · {waiting.length}명</div>
+          <div className="poolbox">
+            <div className="chips">
+              {waiting.map(d => <span className={"chip"+(d.vo?" amber":"")} key={d.i}>
+                {d.vo && <span style={{color:"var(--amber)"}}>{I.crown}</span>}
+                <b style={{fontWeight:600}}>{d.n}</b><span style={{color:"var(--sub)",fontSize:11}}>{d.v}</span>
+              </span>)}
+            </div>
+          </div>
+        </React.Fragment>
+      )}
+
+      <div className="secttl">{I.plus}인원 추가</div>
+      <AddBox onAdd={addPerson} />
+      {adds.length>0 && (
+        <div className="pending">
+          <div className="pt">추가 대기 {adds.length}명 (확정 시 봇이 좌표 변환·조 배정)</div>
+          <div className="chips">{adds.map((a,i)=><span className={"chip"+(a.vvip?" amber":"")} key={i}>
+            {a.vvip && <span style={{color:"var(--amber)"}}>{I.crown}</span>}<b style={{fontWeight:600}}>{a.n}</b>
+            <span style={{color:"var(--sub)",fontSize:11}}>{a.a}</span></span>)}</div>
+        </div>
+      )}
+
+      <div className="actionbar">
+        <button className="btn ghost" onClick={copyTable}>{I.copy}배차표 복사</button>
+        <button className="btn primary" onClick={submit} disabled={opCount===0}>
+          {I.check}<span>확정 전송 {opCount>0 && <span className="ct">({opCount}건)</span>}</span>
+        </button>
+      </div>
+
+      {toast && <div className="toast">{toast}</div>}
+    </React.Fragment>
+  );
+}
+
+function AddBox({ onAdd }){
+  const [name, setName] = useState("");
+  const [addr, setAddr] = useState("");
+  const [v, setV] = useState(false);
+  const go = () => {
+    if(!name.trim() || !addr.trim()){ return; }
+    onAdd(name, addr, v); setName(""); setAddr(""); setV(false);
+  };
+  return (
+    <div className="addbox">
+      <div className="t">{I.plus}인원 추가 (이름 + 도로명주소)</div>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="이름" />
+      <input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="서울특별시 강남구 테헤란로 152" />
+      <label className="ck"><input type="checkbox" checked={v} onChange={e=>setV(e.target.checked)} />VVIP (1:1 전용차)</label>
+      <button className="btn primary" style={{flex:"none",padding:"0 16px"}} onClick={go}>{I.plus}추가 대기에 넣기</button>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
